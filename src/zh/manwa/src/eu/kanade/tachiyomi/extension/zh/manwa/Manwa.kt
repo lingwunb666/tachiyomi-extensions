@@ -19,6 +19,9 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.Cookie
+import okhttp3.CookieJar
+import okhttp3.HttpUrl
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
@@ -61,12 +64,47 @@ class Manwa : ParsedHttpSource(), ConfigurableSource {
             originalResponse
         }
     }
+
+    //存储cookie，用于判断同一cookie是否用了超过指定次数
+    val externalList = mutableListOf<String>()
+    //cookie最大使用次数
+    val maxUseCookieCount = 7
+    //不清楚manwa具体搞了什么飞机，在tachiyomo中manwa.com同一cookie如果用了7次以上就会导致漫画页面只有三张图，我比较菜，没发现什么更好的解决办法
+    //所以使用cookieJar来配合上面的list判断超过指定次数就重置cookie来达到不出现3张图的情况，虽说每7次就会有一次因为没有cookie解析失败，但是重新点一下就好了
+    //下载也同上，每下7次就会失败一次，等只剩下失败的任务后暂停重新开始即可
+    val cookieJar = object : CookieJar {
+        private val cookieStore = mutableMapOf<String, MutableList<Cookie>>()
+
+        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+            cookieStore[url.host] = cookies.toMutableList()
+        }
+
+        //没学过kotlin，只会JAVA，配合chatGpt写的代码，勿喷
+        override fun loadForRequest(url: HttpUrl): List<Cookie> {
+            var cookies = cookieStore[url.host] ?: emptyList()
+            val cookie2 = cookies.getOrNull(1)
+            if (cookie2 != null) {
+                val parts = cookie2.value.split(";")
+                val firstPart = parts.firstOrNull()?.trim()
+                if (firstPart != null) {
+                    externalList.add(firstPart)
+                    if (externalList.size > maxUseCookieCount) {
+                        externalList.clear()
+                        cookieStore[url.host] = mutableListOf()
+                        cookies = emptyList()
+                    }
+                }
+            }
+            return cookies
+        }
+    }
+
     override val client: OkHttpClient = network.client.newBuilder()
+        .cookieJar(cookieJar)
         .addNetworkInterceptor(rewriteOctetStream)
         .build()
 
     // Popular
-
     override fun popularMangaRequest(page: Int) = GET("$baseUrl/rank", headers)
     override fun popularMangaNextPageSelector(): String? = null
     override fun popularMangaSelector(): String = "#rankList_2 > a"
@@ -77,7 +115,6 @@ class Manwa : ParsedHttpSource(), ConfigurableSource {
     }
 
     // Latest
-
     override fun latestUpdatesRequest(page: Int) = GET("$baseUrl/getUpdate?page=${page * 15 - 15}&date=", headers)
     override fun latestUpdatesParse(response: Response): MangasPage {
         // Get image host
@@ -149,7 +186,7 @@ class Manwa : ParsedHttpSource(), ConfigurableSource {
     }
 
     override fun pageListParse(document: Document): List<Page> = mutableListOf<Page>().apply {
-        document.select("#cp_img > img[data-r-src]").forEachIndexed { index, it ->
+        document.select("#cp_img > .img-content > img[data-r-src]").forEachIndexed { index, it ->
             add(Page(index, "", it.attr("data-r-src")))
         }
     }
