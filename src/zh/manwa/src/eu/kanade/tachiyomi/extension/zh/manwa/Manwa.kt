@@ -3,7 +3,6 @@ package eu.kanade.tachiyomi.extension.zh.manwa
 import android.app.Application
 import android.content.SharedPreferences
 import android.net.Uri
-import android.util.Log
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.network.GET
@@ -47,7 +46,6 @@ class Manwa : ParsedHttpSource(), ConfigurableSource {
 
     private val rewriteOctetStream: Interceptor = Interceptor { chain ->
         val originalResponse: Response = chain.proceed(chain.request())
-        Log.i("lingwu", originalResponse.request.url.toString())
         if (originalResponse.request.url.toString().endsWith("?v=20220724")) {
             // Decrypt images in mangas
             val orgBody = originalResponse.body.bytes()
