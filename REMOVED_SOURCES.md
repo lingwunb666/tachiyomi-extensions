@@ -1,3 +1,11 @@
+**There is no timetable on when or if a source request may be filled (also applies to bug reports and enhancement requests).**
+
+### In General the following sources that won't be added as an extension
+- In general heavily paywalled sites
+- Sources that require cracking some app's source code (realistically, no one's going to put in the effort to do it)
+- Sources that are known for filling a lot of DMCA complaints over repositories on GitHub
+
+Here is a list of known sources that were removed.
 ## Removed sources
 
 ### Too difficult to maintain
@@ -42,6 +50,7 @@
 - MangaSY https://github.com/tachiyomiorg/tachiyomi-extensions/issues/12007
 - Mangawow https://github.com/tachiyomiorg/tachiyomi-extensions/issues/5367
 - MHScans https://github.com/tachiyomiorg/tachiyomi-extensions/issues/15319
+- Mono Manga https://github.com/tachiyomiorg/tachiyomi-extensions/issues/17634
 - NarTag https://github.com/tachiyomiorg/tachiyomi-extensions/issues/8038
 - Plot-twistnf-scans https://github.com/tachiyomiorg/tachiyomi-extensions/issues/4242
 - Realm Scans https://github.com/tachiyomiorg/tachiyomi-extensions/issues/15586
