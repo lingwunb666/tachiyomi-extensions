@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.extension.zh.manwa
 import android.app.Application
 import android.content.SharedPreferences
 import android.net.Uri
+import android.util.Log
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.network.GET
@@ -19,9 +20,6 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.Cookie
-import okhttp3.CookieJar
-import okhttp3.HttpUrl
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
@@ -30,6 +28,7 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import rx.Observable
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
@@ -48,6 +47,7 @@ class Manwa : ParsedHttpSource(), ConfigurableSource {
 
     private val rewriteOctetStream: Interceptor = Interceptor { chain ->
         val originalResponse: Response = chain.proceed(chain.request())
+        Log.i("lingwu", originalResponse.request.url.toString())
         if (originalResponse.request.url.toString().endsWith("?v=20220724")) {
             // Decrypt images in mangas
             val orgBody = originalResponse.body.bytes()
@@ -65,42 +65,7 @@ class Manwa : ParsedHttpSource(), ConfigurableSource {
         }
     }
 
-    //存储cookie，用于判断同一cookie是否用了超过指定次数
-    val externalList = mutableListOf<String>()
-    //cookie最大使用次数
-    val maxUseCookieCount = 7
-    //不清楚manwa具体搞了什么飞机，在tachiyomo中manwa.com同一cookie如果用了7次以上就会导致漫画页面只有三张图，我比较菜，没发现什么更好的解决办法
-    //所以使用cookieJar来配合上面的list判断超过指定次数就重置cookie来达到不出现3张图的情况，虽说每7次就会有一次因为没有cookie解析失败，但是重新点一下就好了
-    //下载也同上，每下7次就会失败一次，等只剩下失败的任务后暂停重新开始即可
-    val cookieJar = object : CookieJar {
-        private val cookieStore = mutableMapOf<String, MutableList<Cookie>>()
-
-        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-            cookieStore[url.host] = cookies.toMutableList()
-        }
-
-        //没学过kotlin，只会JAVA，配合chatGpt写的代码，勿喷
-        override fun loadForRequest(url: HttpUrl): List<Cookie> {
-            var cookies = cookieStore[url.host] ?: emptyList()
-            val cookie2 = cookies.getOrNull(1)
-            if (cookie2 != null) {
-                val parts = cookie2.value.split(";")
-                val firstPart = parts.firstOrNull()?.trim()
-                if (firstPart != null) {
-                    externalList.add(firstPart)
-                    if (externalList.size > maxUseCookieCount) {
-                        externalList.clear()
-                        cookieStore[url.host] = mutableListOf()
-                        cookies = emptyList()
-                    }
-                }
-            }
-            return cookies
-        }
-    }
-
     override val client: OkHttpClient = network.client.newBuilder()
-        .cookieJar(cookieJar)
         .addNetworkInterceptor(rewriteOctetStream)
         .build()
 
@@ -179,8 +144,12 @@ class Manwa : ParsedHttpSource(), ConfigurableSource {
         return super.chapterListParse(response).reversed()
     }
 
-    // Pages
+    override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
+        client.newCall(GET("$baseUrl/static/images/pv.gif")).execute()
+        return super.fetchPageList(chapter)
+    }
 
+    // Pages
     override fun pageListRequest(chapter: SChapter): Request {
         return GET("$baseUrl${chapter.url}?img_host=${preferences.getString(IMAGE_HOST_KEY, IMAGE_HOST_ENTRY_VALUES[0])}", headers)
     }
